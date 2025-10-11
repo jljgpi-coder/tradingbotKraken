@@ -123,13 +123,9 @@ def run_bot():
 # === Start Flask and bot thread ===
 if __name__ == "__main__":
     try:
-        send_telegram("🚀 Kraken Day Trading Bot Started!")
+        print("🚀 Starting Kraken bot...")
+        start_bot()
     except Exception as e:
-        print("Telegram start message failed:", e)
-
-    # Start bot loop in daemon thread
-    Thread(target=run_bot, daemon=True).start()
-
-    # Keep Flask running for Render Free
-    print("✅ Starting Flask server on port 10000...")
-    app.run(host="0.0.0.0", port=10000)
+        import traceback
+        print("❌ ERROR OCCURRED:", e)
+        traceback.print_exc()
