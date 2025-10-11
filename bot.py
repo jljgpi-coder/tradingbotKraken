@@ -7,7 +7,9 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    app.run(host="0.0.0.0", port=8080)import ccxt
+    app.run(host="0.0.0.0", port=8080)
+    
+import ccxt
 import pandas as pd
 import pandas_ta as ta
 import time
@@ -112,7 +114,9 @@ def generate_signal(df):
             last_signal = signal
 
         time.sleep(POLL_SECONDS)
+        
 Thread(target=run_flask).start()
+
 if __name__ == "__main__":
     send_telegram("🚀 Kraken Day Trading Bot Started!")
     run_bot()
