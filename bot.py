@@ -1,13 +1,14 @@
-import os
-import time
-import requests
+from flask import Flask
+from threading import Thread
 import ccxt
 import pandas as pd
 import pandas_ta as ta
-from flask import Flask
-from threading import Thread
+import time
+import requests
+import yaml
+import numpy as np
 
-# === Flask app for Render health checks ===
+# === Flask app for Render health check ===
 app = Flask(__name__)
 
 @app.route('/')
@@ -15,38 +16,40 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(host="0.0.0.0", port=8080)
 
-Thread(target=run_flask).start()
-
-# === Load environment variables ===
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-SYMBOL = os.environ.get("SYMBOL", "XBT/USD")
-TIMEFRAME = os.environ.get("TIMEFRAME", "5m")
-CANDLES = int(os.environ.get("CANDLES", 300))
-POLL_SECONDS = int(os.environ.get("POLL_SECONDS", 30))
-
-KRAKEN_API_KEY = os.environ.get("KRAKEN_API_KEY")
-KRAKEN_API_SECRET = os.environ.get("KRAKEN_API_SECRET")
-
-# === Setup Kraken exchange ===
-exchange = ccxt.kraken({
-    "apiKey": KRAKEN_API_KEY,
-    "secret": KRAKEN_API_SECRET
-})
-
-# === Telegram helper ===
-def send_telegram(msg):
+# === Load config ===
+def load_config():
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        data = {"chat_id": CHAT_ID, "text": msg}
+        with open("config.yaml", "r") as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        print("⚠️ config.yaml not found, using example config.")
+        with open("config.example.yaml", "r") as f:
+            return yaml.safe_load(f)
+
+config = load_config()
+
+TELEGRAM_TOKEN = config["telegram"]["bot_token"]
+CHAT_ID = config["telegram"]["chat_id"]
+
+SYMBOL = config["kraken"]["symbol"]
+TIMEFRAME = config["kraken"]["timeframe"]
+CANDLES = config["kraken"]["candles"]
+POLL_SECONDS = config["poll_seconds"]
+
+exchange = ccxt.kraken()
+
+# === Send Telegram message ===
+def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": msg}
+    try:
         requests.post(url, data=data)
     except Exception as e:
         print("Telegram send error:", e)
 
-# === Fetch OHLCV data ===
+# === Fetch OHLCV ===
 def get_ohlcv():
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=CANDLES)
@@ -75,6 +78,8 @@ def generate_signal(df):
     rsi = df["rsi"].iloc[-1]
     macd_val = df["macd"].iloc[-1]
     macd_sig = df["signal"].iloc[-1]
+    bb_upper = df["bb_upper"].iloc[-1]
+    bb_lower = df["bb_lower"].iloc[-1]
 
     signal = None
     reason = ""
@@ -88,7 +93,7 @@ def generate_signal(df):
 
     return signal, reason
 
-# === Main bot loop ===
+# === Main loop ===
 def run_bot():
     last_signal = None
     while True:
@@ -106,6 +111,4 @@ def run_bot():
 
         time.sleep(POLL_SECONDS)
 
-if __name__ == "__main__":
-    send_telegram("🚀 Kraken Day Trading Bot Started!")
-    run_bot()
+# === Run Flask in background for Render
