@@ -1,14 +1,5 @@
 from flask import Flask
 from threading import Thread
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is running"
-
-def run_flask():
-    app.run(host="0.0.0.0", port=8080)
-    
 import ccxt
 import pandas as pd
 import pandas_ta as ta
@@ -16,6 +7,16 @@ import time
 import requests
 import yaml
 import numpy as np
+
+# === Flask setup for Render free plan ===
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Kraken Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
 
 # === Load config ===
 def load_config():
@@ -39,7 +40,7 @@ POLL_SECONDS = config["poll_seconds"]
 
 exchange = ccxt.kraken()
 
-# === Helper to send Telegram message ===
+# === Telegram helper ===
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": msg}
@@ -61,7 +62,6 @@ def get_ohlcv():
 
 # === Generate trading signals ===
 def generate_signal(df):
-    # Technical indicators
     df["ema20"] = ta.ema(df["close"], length=20)
     df["ema50"] = ta.ema(df["close"], length=50)
     df["rsi"] = ta.rsi(df["close"], length=14)
@@ -72,33 +72,27 @@ def generate_signal(df):
     df["macd"] = macd["MACD_12_26_9"]
     df["signal"] = macd["MACDs_12_26_9"]
 
-    # Latest values
     close = df["close"].iloc[-1]
     ema20 = df["ema20"].iloc[-1]
     ema50 = df["ema50"].iloc[-1]
     rsi = df["rsi"].iloc[-1]
     macd_val = df["macd"].iloc[-1]
     macd_sig = df["signal"].iloc[-1]
-    bb_upper = df["bb_upper"].iloc[-1]
-    bb_lower = df["bb_lower"].iloc[-1]
 
     signal = None
     reason = ""
 
-    # Long signal
     if close > ema20 > ema50 and rsi < 70 and macd_val > macd_sig:
         signal = "LONG"
         reason = f"Price {close:.2f} above EMA20/50, RSI {rsi:.1f}, MACD bullish."
-
-    # Short signal
     elif close < ema20 < ema50 and rsi > 30 and macd_val < macd_sig:
         signal = "SHORT"
         reason = f"Price {close:.2f} below EMA20/50, RSI {rsi:.1f}, MACD bearish."
 
     return signal, reason
 
-# === Main loop ===
- def run_bot():
+# === Main bot loop ===
+def run_bot():
     last_signal = None
     while True:
         df = get_ohlcv()
@@ -114,9 +108,13 @@ def generate_signal(df):
             last_signal = signal
 
         time.sleep(POLL_SECONDS)
-        
+
+# === Start Flask and bot threads ===
 Thread(target=run_flask).start()
 
 if __name__ == "__main__":
-    send_telegram("🚀 Kraken Day Trading Bot Started!")
-    run_bot()
+    try:
+        send_telegram("🚀 Kraken Day Trading Bot Started!")
+    except Exception as e:
+        print("Telegram start message failed:", e)
+    Thread(target=run_bot).start()
