@@ -1,0 +1,10 @@
+telegram:
+  bot_token: "YOUR_NEW_BOT_TOKEN"
+  chat_id: "YOUR_EXISTING_CHAT_ID"
+
+kraken:
+  symbol: "XBT/USD"
+  timeframe: "5m"
+  candles: 300
+
+poll_seconds: 30
