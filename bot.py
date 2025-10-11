@@ -1,16 +1,16 @@
-import os
-import time
-import requests
+from flask import Flask
+from threading import Thread
 import ccxt
 import pandas as pd
 import pandas_ta as ta
-from flask import Flask
-from threading import Thread
+import time
+import requests
+import yaml
 
-# === Flask for Render health check ===
+# --- Flask setup ---
 app = Flask(__name__)
 
-@app.route("/")
+@app.route('/')
 def home():
     return "Bot is running"
 
@@ -19,33 +19,29 @@ def run_flask():
 
 Thread(target=run_flask).start()
 
-# === Load environment variables ===
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
-KRAKEN_API_KEY = os.environ.get("KRAKEN_API_KEY")
-KRAKEN_API_SECRET = os.environ.get("KRAKEN_API_SECRET")
-SYMBOL = os.environ.get("SYMBOL", "XBT/USD")
-TIMEFRAME = os.environ.get("TIMEFRAME", "5m")
-CANDLES = int(os.environ.get("CANDLES", 300))
-POLL_SECONDS = int(os.environ.get("POLL_SECONDS", 30))
+# --- Load config from environment variables ---
+import os
 
-# === Setup Kraken exchange ===
-exchange = ccxt.kraken({
-    "apiKey": KRAKEN_API_KEY,
-    "secret": KRAKEN_API_SECRET
-})
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# === Telegram helper ===
+SYMBOL = os.getenv("SYMBOL", "XBT/USD")
+TIMEFRAME = os.getenv("TIMEFRAME", "5m")
+CANDLES = int(os.getenv("CANDLES", 300))
+POLL_SECONDS = int(os.getenv("POLL_SECONDS", 30))
+
+exchange = ccxt.kraken()
+
+# --- Helper to send Telegram messages ---
 def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": msg}
     try:
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            data={"chat_id": CHAT_ID, "text": msg}
-        )
+        requests.post(url, data=data)
     except Exception as e:
         print("Telegram send error:", e)
 
-# === Fetch OHLCV ===
+# --- Fetch OHLCV ---
 def get_ohlcv():
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=CANDLES)
@@ -56,7 +52,7 @@ def get_ohlcv():
         print("Fetch error:", e)
         return pd.DataFrame()
 
-# === Generate trading signals ===
+# --- Generate trading signals ---
 def generate_signal(df):
     df["ema20"] = ta.ema(df["close"], length=20)
     df["ema50"] = ta.ema(df["close"], length=50)
@@ -87,7 +83,7 @@ def generate_signal(df):
 
     return signal, reason
 
-# === Main bot loop ===
+# --- Main loop ---
 def run_bot():
     last_signal = None
     while True:
