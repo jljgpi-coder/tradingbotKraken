@@ -1,0 +1,7 @@
+ccxt==2.0.87
+pandas==2.2.2
+numpy==1.26.0
+python-telegram-bot==20.6
+pandas-ta==0.5.2b0
+PyYAML==6.0
+requests==2.32.0
