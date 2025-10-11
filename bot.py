@@ -1,17 +1,16 @@
-from flask import Flask
-from threading import Thread
 import os
+import time
+import requests
 import ccxt
 import pandas as pd
 import pandas_ta as ta
-import time
-import requests
-import numpy as np
+from flask import Flask
+from threading import Thread
 
-# Flask app for health check
+# === Flask for Render health check ===
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def home():
     return "Bot is running"
 
@@ -21,32 +20,32 @@ def run_flask():
 Thread(target=run_flask).start()
 
 # === Load environment variables ===
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
+KRAKEN_API_KEY = os.environ.get("KRAKEN_API_KEY")
+KRAKEN_API_SECRET = os.environ.get("KRAKEN_API_SECRET")
+SYMBOL = os.environ.get("SYMBOL", "XBT/USD")
+TIMEFRAME = os.environ.get("TIMEFRAME", "5m")
+CANDLES = int(os.environ.get("CANDLES", 300))
+POLL_SECONDS = int(os.environ.get("POLL_SECONDS", 30))
 
-SYMBOL = os.getenv("SYMBOL", "XBT/USD")
-TIMEFRAME = os.getenv("TIMEFRAME", "5m")
-CANDLES = int(os.getenv("CANDLES", 300))
-POLL_SECONDS = int(os.getenv("POLL_SECONDS", 30))
-
-KRAKEN_API_KEY = os.getenv("KRAKEN_API_KEY")
-KRAKEN_API_SECRET = os.getenv("KRAKEN_API_SECRET")
-
+# === Setup Kraken exchange ===
 exchange = ccxt.kraken({
-    'apiKey': KRAKEN_API_KEY,
-    'secret': KRAKEN_API_SECRET
+    "apiKey": KRAKEN_API_KEY,
+    "secret": KRAKEN_API_SECRET
 })
 
-# Telegram helper
+# === Telegram helper ===
 def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": msg}
     try:
-        requests.post(url, data=data)
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            data={"chat_id": CHAT_ID, "text": msg}
+        )
     except Exception as e:
         print("Telegram send error:", e)
 
-# Fetch OHLCV
+# === Fetch OHLCV ===
 def get_ohlcv():
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=CANDLES)
@@ -57,7 +56,7 @@ def get_ohlcv():
         print("Fetch error:", e)
         return pd.DataFrame()
 
-# Generate signals
+# === Generate trading signals ===
 def generate_signal(df):
     df["ema20"] = ta.ema(df["close"], length=20)
     df["ema50"] = ta.ema(df["close"], length=50)
@@ -88,7 +87,7 @@ def generate_signal(df):
 
     return signal, reason
 
-# Main loop
+# === Main bot loop ===
 def run_bot():
     last_signal = None
     while True:
@@ -99,12 +98,12 @@ def run_bot():
 
         signal, reason = generate_signal(df)
         if signal and signal != last_signal:
-            msg = f"📊 {SYMBOL} Alert\nSignal: {signal}\n{reason}"
+            msg = f"📊 {SYMBOL} Day Trade Alert\nSignal: {signal}\n{reason}\n\nTP1: +0.5%\nTP2: +1%\nTP3: +2%\nSL: -0.5%"
             send_telegram(msg)
             last_signal = signal
 
         time.sleep(POLL_SECONDS)
 
 if __name__ == "__main__":
-    send_telegram("🚀 Kraken Bot Started!")
+    send_telegram("🚀 Kraken Day Trading Bot Started!")
     run_bot()
