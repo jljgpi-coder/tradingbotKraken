@@ -8,40 +8,51 @@ import requests
 import yaml
 import numpy as np
 
-# === Flask setup for Render free plan ===
+# === Flask setup for Render Free Plan ===
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "✅ Kraken Bot is running!"
 
-def run_flask():
-    app.run(host="0.0.0.0", port=10000)
+# === Load config from environment variables if available ===
+import os
 
-# === Load config ===
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+SYMBOL = os.getenv("SYMBOL", "XBT/USD")
+TIMEFRAME = os.getenv("TIMEFRAME", "5m")
+CANDLES = int(os.getenv("CANDLES", 300))
+POLL_SECONDS = int(os.getenv("POLL_SECONDS", 30))
+
+# Fallback to config.yaml if needed
 def load_config():
     try:
         with open("config.yaml", "r") as f:
-            return yaml.safe_load(f)
+            cfg = yaml.safe_load(f)
+            global TELEGRAM_TOKEN, CHAT_ID, SYMBOL, TIMEFRAME, CANDLES, POLL_SECONDS
+            TELEGRAM_TOKEN = TELEGRAM_TOKEN or cfg["telegram"]["bot_token"]
+            CHAT_ID = CHAT_ID or cfg["telegram"]["chat_id"]
+            SYMBOL = SYMBOL or cfg["kraken"]["symbol"]
+            TIMEFRAME = TIMEFRAME or cfg["kraken"]["timeframe"]
+            CANDLES = CANDLES or cfg["kraken"]["candles"]
+            POLL_SECONDS = POLL_SECONDS or cfg["poll_seconds"]
     except FileNotFoundError:
-        print("⚠️ config.yaml not found, using example config.")
-        with open("config.example.yaml", "r") as f:
-            return yaml.safe_load(f)
+        print("⚠️ config.yaml not found, using environment variables.")
 
-config = load_config()
+load_config()
 
-TELEGRAM_TOKEN = config["telegram"]["bot_token"]
-CHAT_ID = config["telegram"]["chat_id"]
-
-SYMBOL = config["kraken"]["symbol"]
-TIMEFRAME = config["kraken"]["timeframe"]
-CANDLES = config["kraken"]["candles"]
-POLL_SECONDS = config["poll_seconds"]
-
-exchange = ccxt.kraken()
+# === Initialize Kraken exchange ===
+exchange = ccxt.kraken({
+    "apiKey": os.getenv("KRAKEN_API_KEY"),
+    "secret": os.getenv("KRAKEN_API_SECRET")
+})
 
 # === Telegram helper ===
 def send_telegram(msg):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("⚠️ Telegram token or chat ID missing")
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": msg}
     try:
@@ -49,7 +60,7 @@ def send_telegram(msg):
     except Exception as e:
         print("Telegram send error:", e)
 
-# === Fetch and process data ===
+# === Fetch OHLCV data ===
 def get_ohlcv():
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=CANDLES)
@@ -60,7 +71,7 @@ def get_ohlcv():
         print("Fetch error:", e)
         return pd.DataFrame()
 
-# === Generate trading signals ===
+# === Generate signals ===
 def generate_signal(df):
     df["ema20"] = ta.ema(df["close"], length=20)
     df["ema50"] = ta.ema(df["close"], length=50)
@@ -109,16 +120,14 @@ def run_bot():
 
         time.sleep(POLL_SECONDS)
 
-# === Start Flask and bot threads ===
-Thread(target=run_flask).start()
-
+# === Start Flask and bot thread ===
 if __name__ == "__main__":
     try:
         send_telegram("🚀 Kraken Day Trading Bot Started!")
     except Exception as e:
         print("Telegram start message failed:", e)
 
-    # Run the bot in a separate thread so Flask can stay alive
+    # Start bot loop in daemon thread
     Thread(target=run_bot, daemon=True).start()
 
     # Keep Flask running for Render Free
