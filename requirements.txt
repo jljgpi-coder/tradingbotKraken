@@ -1,11 +1,5 @@
-# Core dependencies
-pandas>=2.0.3
-numpy>=1.25.2
-ccxt>=3.0.49
-pandas-ta   # remove version pin so pip installs compatible version automatically
-
-# Telegram bot
-python-telegram-bot>=20.0
-
-# Any other packages your bot needs
-requests
+pandas==2.0.3
+numpy==1.25.2
+ccxt==3.0.49
+git+https://github.com/twopirllc/pandas-ta.git
+python-telegram-bot==20.0
