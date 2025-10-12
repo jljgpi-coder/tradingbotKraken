@@ -1,7 +1,7 @@
-ccxt
+ccxt==3.0.70
 pandas==1.5.3
 pandas-ta==0.3.14b0
 python-telegram-bot==20.3
-requests
-schedule
-python-dotenv
+requests==2.31.0
+schedule==1.2.0
+python-dotenv==1.0.0
