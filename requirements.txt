@@ -1,5 +1,5 @@
 pandas==2.0.3
 numpy==1.25.2
 ccxt==3.0.49
-git+https://github.com/twopirllc/pandas-ta.git
+pandas-ta==0.3.21b0
 python-telegram-bot==20.0
