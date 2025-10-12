@@ -1,6 +1,7 @@
-python-telegram-bot==20.3
+ccxt
 pandas==1.5.3
 pandas-ta
+python-telegram-bot==20.3
 requests
 schedule
 python-dotenv
